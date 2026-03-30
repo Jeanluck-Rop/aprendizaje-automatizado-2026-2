@@ -1,0 +1,388 @@
+\documentclass[12pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{listings, float, tikz, amssymb, amsthm}
+\usepackage{algorithm, algpseudocode, chngcntr}
+\usepackage{graphicx, geometry, xcolor, amsmath, enumitem}
+\usepackage{tocloft}
+\usepackage[normalem]{ulem}
+
+\geometry{margin=2.5cm, top=2.5cm, bottom=2.5cm}
+\newcommand{\asig}{\leftarrow}
+
+\begin{document}
+
+\input{portada}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+1. Introducción
+
+1.1 Contexto y motivación
+La mortalidad infantil y materna constituye uno de los indicadores más sensibles del nivel de desarrollo humano a escala global. Los Objetivos de Desarrollo Sostenible de las Naciones Unidas establecen como meta para el año 2030 la eliminación de las muertes prevenibles de recién nacidos y niños menores de cinco años, con el propósito de que todos los países reduzcan esa tasa a no más de 25 defunciones por cada 1,000 nacidos vivos. En el mismo plano, la mortalidad materna representa una problemática paralela de igual urgencia, según cifras del año 2017, aproximadamente 295,000 mujeres fallecieron durante o tras el embarazo y el parto. El 94% de esos casos se concentró en entornos de bajos recursos, donde la mayoría de esas muertes eran prevenibles.
+
+En este contexto, la Cardiotocografía (CTG) emerge como una herramienta diagnóstica accesible, no invasiva y de bajo costo que permite monitorear de forma continua el estado de salud fetal durante la gestación. Mediante el envío de pulsos de ultrasonido y el análisis de su respuesta, un equipo CTG registra la frecuencia cardíaca fetal (FCF), los movimientos del feto, las contracciones uterinas y otras señales fisiológicas clave. Su disponibilidad en entornos clínicos de distinto nivel la convierte en un recurso estratégico para la detección temprana de signos de sufrimiento fetal, potencialmente evitando desenlaces graves.
+
+1.2 Descripción del problema
+En este proyecto abordaremos el análisis de registros de cardiotocografía con el objetivo de identificar, mediante técnicas de agrupamiento no supervisado (clustering), patrones intrínsecos en el comportamiento fisiológico fetal. A diferencia de los enfoques de clasificación supervisada, donde el modelo aprende a partir de etiquetas predefinidas, el clustering explora la estructura natural de los datos sin imponer categorías a priori, lo cual resulta de especial interés cuando se desea descubrir agrupaciones que no necesariamente coincidan con las clasificaciones diagnósticas convencionales.
+
+El dataset elegido contiene 2,126 registros de exámenes CTG, cada uno descrito por 21 variables numéricas relacionadas con la dinámica cardíaca fetal y las propiedades estadísticas del histograma de frecuencia cardíaca. Cada registro cuenta además con una etiqueta de clase asignada por tres obstetras expertos, que categoriza el estado fetal como Normal, Sospechoso o Patológico. Esta etiqueta no formará parte del entrenamiento de los modelos de clustering; sin embargo, servirá como referencia externa para evaluar la coherencia clínica de los grupos descubiertos.
+
+1.3 Justificación del dataset
+
+Seleccionamos este conjunto de datos de salud fetal por una combinación de factores éticos y técnicos que lo convierten en un escenario de estudio ideal:
+
+    Motivación Social y Médica: Nos motiva el potencial impacto de aplicar las ciencias de la computación en áreas críticas como la salud perinatal. Entender cómo los algoritmos pueden agrupar registros de una situación tan delicada como la salud fetal nos permite explorar el rol de la IA como herramienta de apoyo en diagnósticos médicos de precisión.
+
+    Naturaleza de las Variables: El dataset es técnicamente "limpio" pero desafiante. Al contar con variables puramente numéricas (tanto discretas como continuas) y una ausencia total de valores faltantes, podemos centrar nuestros esfuerzos en la experimentación algorítmica sin el sesgo que introduce la imputación de datos.
+
+    Heterogeneidad de Escalas: La coexistencia de variables con magnitudes drásticamente distintas —desde la frecuencia cardíaca basal (106 a 159 lpm) hasta tasas de aceleración en milésimas de segundo— nos ofrece un entorno real para poner a prueba técnicas de estandarización y reducción de dimensionalidad (PCA). Este desequilibrio de escalas es, paradójicamente, lo que hace al dataset interesante para evaluar la sensibilidad de los modelos de clustering.
+
+1.4 Objetivo general
+El objetivo general de este proyecto es aplicar y comparar tres métodos de clustering sobre el conjunto de datos de cardiotocografía fetal para identificar agrupaciones naturales en los registros, evaluar su coherencia interna mediante métricas de validación especializadas y contrastar los resultados con las categorías diagnósticas de referencia, con el fin de determinar en qué medida el aprendizaje no supervisado es capaz de recuperar la estructura clínica subyacente en los datos.
+
+
+2. Descripción del Dataset
+
+2.1 Fuente y referencia
+El dataset empleado proviene de la plataforma Kaggle bajo el título Fetal Health Classification, y tiene como origen científico el estudio de Ayres de Campos et al. (2000), publicado en el Journal of Maternal-Fetal Medicine con el nombre SisPorto 2.0: A Program for Automated Analysis of Cardiotocograms. Los datos corresponden a registros reales de monitoreos de Cardiotocografía (CTG) clasificados de manera consensuada por tres obstetras expertos. Su disponibilidad pública y su respaldo clínico lo convierten en un recurso ampliamente referenciado en estudios de aprendizaje automático aplicado a salud materno-fetal.
+
+2.2 Dimensiones y naturaleza del dataset
+El conjunto de datos está compuesto por 2,126 observaciones y 22 columnas en total. De ellas, 21 corresponden a variables de entrada derivadas del análisis de señales CTG, y una columna adicional fetal\_health contiene la etiqueta de clasificación clínica asignada por los especialistas. No existen valores faltantes: los 2,126 registros están completos en su totalidad.
+
+Nótese, que este es un problema de aprendizaje supervisado con una tarea de clasificación multiclase (tres categorías posibles: Normal, Sospechoso y Patológico). Dado que las categorías reflejan una gradación de severidad clínica, el problema puede interpretarse también como una clasificación ordinal, donde 1 < 2 < 3 no solo distingue clases sino que implica un orden de riesgo creciente.
+
+En cuanto al tipo de variables, el dataset no contiene columnas categóricas ni de texto: todas las variables de entrada son numéricas. Sin embargo, dentro de ese grupo conviven dos subtipos:
+
+    - Variables continuas: aceleraciones, movimientos, contracciones y tasas de desaceleración. Son valores decimales que representan frecuencias por segundo y pueden tomar cualquier valor dentro de su rango.
+    - Variables discretas: variables del histograma (ancho, mínimo, máximo, picos, ceros, moda, media, mediana, varianza) y variables de porcentaje expresadas como enteros. Aunque almacenadas como decimales, sus valores efectivos no tienen fraccionamiento significativo.
+    - Estadísticas de agregación: las variables del histograma (moda, media, mediana) son representaciones matemáticas de la misma señal cardíaca subyacente. Por su construcción, están intrínsecamente correlacionadas entre sí, lo que introduce redundancia en el espacio de características.
+
+2.3 Descripción detallada de las variables
+A continuación presentamos una tabla que describe las 21 variables de entrada con su tipo, rango observado y las características más relevantes para el análisis, todo esto de manera superficial sin hacer un análisis muy detalldo, pero así podemos darnos una idea de como tratar con este dataset:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|l|p{7cm}|}
+\hline
+\textbf{Variable} & \textbf{Tipo} & \textbf{Rango aproximado} & \textbf{Observaciones clave} \\
+\hline
+baseline\_value & Discreta & $106 - 159$ bpm & Sin decimales. Representa la FCF basal. Es la variable de mayor magnitud absoluta del dataset. \\
+\hline
+accelerations & Continua & $0.000 - 0.018$ & Alta presencia de valores $0.0$. Rango muy reducido; la diferencia entre clases puede ser sutil. \\
+\hline
+fetal\_movement & Continua & $0.000 - 0.481$ & Mayoría de registros en $0.0$. Distribución fuertemente asimétrica hacia la derecha. \\
+\hline
+uterine\_contractions & Continua & $0.000 - 0.016$ & Concentración de valores entre $0.001$ y $0.009$. Distribución compacta con cola superior. \\
+\hline
+light\_decelerations & Continua & $0.000 - 0.014$ & Mayoría en $0.0$. Patrón similar a accelerations. \\
+\hline
+severe\_decelerations & Continua & $0.000 - 0.001$ & Solo $5$ registros difieren de $0.0$. Variable casi constante; baja varianza informativa. \\
+\hline
+prolonged\_decelerations & Continua & $0.000 - 0.004$ & Gran mayoría en $0.0$, pocos casos con valores superiores. Alta dispersión. \\
+\hline
+abnormal\_short\_term\_variability & Discreta & $16 - 87 \%$ & Porcentaje entero. Buen rango de variación; útil para distinguir entre clases. \\
+\hline
+mean\_value\_of\_short\_term\_variability & Continua & $0.3 - 7.0$ ms & Valores decimales con $1-3$ dígitos. Distribución moderadamente distribuida. \\
+\hline
+percentage\_of\_time\_with\_abnormal\_long\_term\_variability & Discreta & $0 - 91 \%$ & Bimodal: muchos valores bajos ($0$–$10\%$) y un grupo con valores altos ($>20\%$). \\
+\hline
+mean\_value\_of\_long\_term\_variability & Continua & $0.0 - 29.5$ & Rango amplio. Potencial indicador de estados patológicos en valores extremos. \\
+\hline
+histogram\_width & Discreta & $7 - 150$ & Diferencia max-min del histograma. Alta variabilidad entre registros. \\
+\hline
+histogram\_min & Discreta & $50 - 148$ & Valor mínimo de FCF en el histograma. Correlacionado con histogram\_max. \\
+\hline
+histogram\_max & Discreta & $126 - 200$ & Valor máximo de FCF. Correlacionado con histogram\_min y histogram\_width. \\
+\hline
+histogram\_number\_of\_peaks & Discreta & $0 - 14$ & Número de picos detectados. Distribución variable entre registros. \\
+\hline
+histogram\_number\_of\_zeroes & Discreta & $0 - 10$ & Mayoría con $0-1$ ceros. Outliers extremos: valores de $5, 7, 8$ y $10$. \\
+\hline
+histogram\_mode & Discreta & $71 - 160$ & Moda de la FCF. Concentración entre $120$ y $150$. Altamente correlacionada con mean y median. \\
+\hline
+histogram\_mean & Discreta & $\sim 73 - 167$ & Media del histograma. Comportamiento muy similar a histogram\_mode y histogram\_median. \\
+\hline
+histogram\_median & Discreta & similar a mean & Mediana del histograma. Forma un bloque de multicolinealidad con mode y mean. \\
+\hline
+histogram\_variance & Discreta & $0 - 215$ & Alta dispersión. Mayoría bajo $10$, pero con outliers superiores a $120$. Distribución muy sesgada. \\
+\hline
+histogram\_tendency & Discreta & $-1 / 0 / 1$ & Solo tres valores posibles. Funciona como variable ordinal categórica codificada numéricamente. \\
+\hline
+\end{tabular}
+\end{table}
+
+2.4 Variable objetivo
+La columna fetal\_health representa la clasificación clínica del estado fetal, asignada por tres obstetras expertos mediante consenso. Sus tres valores posibles son: 1 = Normal, 2 = Sospechoso y 3 = Patológico. Esta variable no participará como entrada en ningún algoritmo de clustering; su rol dentro del análisis es exclusivamente el de referencia externa para la evaluación posterior de los grupos descubiertos, a través de métricas como el Adjusted Rand Index (ARI) y la Normalized Mutual Information (NMI).
+
+La distribución de esta variable está marcadamente desequilibrada, la clase Normal concentra aproximadamente el 78% de los registros, mientras que las clases Sospechoso y Patológico representan el 14% y el 8%, respectivamente. Este desbalance, habitual en datos médicos, es
+
+uno de los retos más relevantes del dataset y deberá ser considerado tanto en la interpretación de los resultados del clustering como en el uso eventual de la etiqueta para evaluación.
+
+2.5 Retos del dataset
+El análisis de este dataset implica enfrentarse a cinco desafíos metodológicos que tienen implicaciones directas sobre la elección de algoritmos, el preprocesamiento y la interpretación de resultados:
+
+A. Desbalance de clases
+Con aproximadamente el 78% de los registros pertenecientes a la clase Normal, el dataset presenta un desbalance significativo. Aunque en clustering no se utilizan etiquetas para el entrenamiento, este desbalance afecta la forma en que los algoritmos basados en prototipos (como K-Means) o en densidad (como DBSCAN) construyen sus agrupaciones: las regiones con menor densidad de puntos —justamente donde se concentran los casos Sospechosos y Patológicos— tienen mayor probabilidad de quedar absorbidas por el grupo mayoritario o, en el caso de DBSCAN, clasificadas como ruido.
+
+B. Heterogeneidad de escalas
+Las variables del dataset coexisten en rangos de magnitud radicalmente distintos. La frecuencia cardíaca basal (baseline_value) oscila entre 106 y 159 lpm, mientras que variables como accelerations o severe_decelerations operan en valores entre 0.000 y 0.018. Cualquier algoritmo que calcule distancias euclidianas entre observaciones, K-Means, clustering jerárquico, DBSCAN, interpretará esa diferencia de magnitud como una diferencia de importancia, otorgando un peso artificialmente mayor a baseline_value por el simple hecho de que su número es más grande. Este problema no puede ignorarse; es necesario estandarizar las variables antes de aplicar cualquier método de clustering.
+
+C. Multicolinealidad entre variables del histograma
+Las variables histogram_mode, histogram_mean y histogram_median son, por definición estadística, representaciones distintas de la misma distribución de frecuencia cardíaca. En la mayoría de los registros del dataset sus valores son prácticamente idénticos o muy cercanos entre sí. Incluir las tres variables en el análisis sin ningún tratamiento equivale a ponderar tres veces la misma información, distorsionando el espacio de distancias. Esta redundancia es un caso de multicolinealidad y justifica tanto el análisis de correlaciones como la reducción de dimensionalidad previa al clustering.
+
+D. Variables con baja varianza (esparsidad)
+La columna severe_decelerations registra el valor 0.001 únicamente en 5 de los 2,126 registros; el resto son exactamente 0.0. Una variable que es prácticamente constante aporta casi ninguna información discriminante y puede incluso introducir ruido en los cálculos de distancia. De manera similar, prolongued_decelerations y light_decelerations presentan distribuciones muy asimétricas con alta concentración en cero. Estas variables requerirán un análisis de varianza previo para decidir si se conservan, se transforman o se eliminan del espacio de características.
+
+E. Outliers en variables del histograma
+Mientras la mayoría de los registros de histogram_variance presentan valores inferiores a 10, existen casos aislados con valores superiores a 120 e incluso un registro con valor 215. De manera similar, histogram_number_of_zeroes tiene cuatro registros con valores de 5, 7, 8 y 10, muy alejados del rango habitual de 0 a 3. Estos valores extremos pueden distorsionar los centroides en K-Means o alterar los parámetros de densidad en DBSCAN, por lo que su identificación y tratamiento forman parte esencial del preprocesamiento.
+
+
+3. Preprocesamiento Planeado
+
+Antes de aplicar cualquier algoritmo de clustering, es necesario garantizar que los datos se encuentren en condiciones adecuadas para el análisis. El preprocesamiento no es un paso auxiliar: en métodos no supervisados, la calidad de los grupos descubiertos depende directamente de la representación que los datos tienen en el espacio de características. En esta sección describimos las estrategias que emplearemos para limpiar, transformar y, opcionalmente, reducir el dataset, así como las decisiones sobre codificación de variables cuando corresponda.
+
+3.1 Auditoría y limpieza de datos
+El primer paso del pipeline de preprocesamiento consiste en realizar una auditoría completa del dataset para verificar su calidad en seis dimensiones fundamentales: completitud, conformidad, consistencia, integridad, ausencia de duplicados y precisión de los valores registrados.
+
+Completitud y valores faltantes
+Como ya se estableció en la descripción del dataset, los 2,126 registros están completos: no existen valores nulos ni celdas vacías en ninguna de las 22 columnas. Sin embargo, como parte del protocolo de limpieza, implementaremos en Python una verificación programática de valores faltantes (incluyendo representaciones alternativas de nulo como cadenas vacías o valores centinela como -999) para confirmar formalmente esta condición antes de proceder.
+
+Duplicados
+Un registro duplicado —idéntico en todas sus columnas— contamina los cálculos de densidad y puede sesgar los centroides de K-Means hacia las regiones sobrerepresentadas. Realizaremos una eliminación de duplicados exactos sobre el conjunto completo de columnas, conservando únicamente la primera ocurrencia de cada registro repetido y documentando cuántos, si los hubiera, fueron removidos.
+
+Consistencia y errores de registro
+Verificaremos que ningún valor se encuentre fuera del rango clínicamente posible para cada variable. Por ejemplo, una frecuencia cardíaca basal de 0 lpm o un porcentaje superior al 100% serían indicativos de errores de captura. Cualquier valor que incumpla estas restricciones de dominio será tratado como un dato inválido y corregido o eliminado según corresponda.
+
+3.2 Tratamiento de outliers
+La presencia de valores extremos en variables como histogram_variance (máximo de 215 frente a una mayoría por debajo de 10) o histogram_number_of_zeroes (registros con valor 10 en un dataset donde el rango típico es 0–3) puede distorsionar los resultados de los algoritmos de clustering de formas distintas según el método utilizado. K-Means, al minimizar distancias euclidianas, es especialmente sensible a outliers porque estos desplazan los centroides.
+
+DBSCAN, en cambio, puede clasificarlos como ruido (noise points), lo cual en este contexto puede ser informativo si esos valores extremos corresponden a casos patológicos.
+
+Para identificar outliers utilizaremos el criterio del rango intercuartílico (IQR): todo valor que se encuentre por debajo de Q1 − 1.5·IQR o por encima de Q3 + 1.5·IQR será considerado un candidato a outlier. La decisión sobre su tratamiento dependerá del contexto clínico:
+
+    • Si el outlier corresponde a un registro con etiqueta Patológico (clase 3), su eliminación podría sesgar el análisis hacia los grupos mayoritarios. En ese caso evaluaremos conservarlo y documentar su efecto.
+    • Si el outlier parece ser un error de captura (valor fuera del rango clínicamente posible), será eliminado o imputado.
+    • Para las variables con alta esparsidad como severe_decelerations, analizaremos si sus escasos valores distintos de cero constituyen outliers informativos o simplemente una distribución muy asimétrica que puede tratarse mediante transformación logarítmica.
+
+3.3 Normalización y estandarización
+Dado que los algoritmos de clustering que emplearemos (K-Means, clustering jerárquico y DBSCAN) operan sobre distancias entre observaciones, la diferencia de escalas entre variables es uno de los problemas más críticos a resolver. Sin estandarización, variables como baseline_value (rango ~100–160) dominarían artificialmente las distancias frente a variables como accelerations (rango ~0.000–0.018).
+
+Consideramos tres alternativas de transformación y determinaremos cuál es más adecuada en función de la distribución observada de cada variable:
+
+    • Estandarización Z-score (StandardScaler): transforma cada variable para que tenga media 0 y desviación estándar 1. Es la opción más apropiada para variables con distribución aproximadamente normal y es la que aplicaremos por defecto sobre la mayoría de las columnas del dataset. Con esto, ninguna variable dominará la métrica de distancia por razones de magnitud.
+
+    • Normalización Min-Max: escala cada variable al rango [0, 1]. Es sensible a outliers, por lo que solo consideraremos su uso en variables con distribución acotada y sin valores extremos significativos.
+
+    • Transformación logarítmica: para variables con distribución fuertemente sesgada hacia la derecha —como fetal_movement, prolongued_decelerations o histogram_variance— una transformación log(x + 1) puede reducir el efecto de los valores extremos y aproximar la distribución a una forma más simétrica antes de estandarizar.
+
+La estrategia final será la siguiente: aplicaremos transformación logarítmica a las variables con alta asimetría y alta esparsidad, seguida de estandarización Z-score sobre la totalidad de las variables transformadas. Este doble paso garantiza que tanto la escala como la forma de las distribuciones estén controladas antes de alimentar los algoritmos.
+
+3.4 Codificación de variables
+Como se señaló en la descripción del dataset, todas las variables de entrada son numéricas: no existen columnas de texto ni variables categóricas nominales que requieran codificación. Sin embargo, la variable histogram_tendency merece atención particular, ya que solo toma tres valores enteros: -1, 0 y 1. Esta variable ya funciona como una codificación ordinal natural (tendencia izquierda, simétrica o derecha) y puede ser conservada tal como está sin necesidad de transformación adicional.
+
+En cuanto a la variable objetivo fetal_health (valores 1, 2 y 3), no será codificada ni incluida en el preprocesamiento de entrada. Se conservará en un vector separado para ser utilizada únicamente durante la evaluación externa de los clusters generados. Si en alguna fase del análisis fuera necesario incluirla como referencia nominal, su representación numérica actual ya equivale a una codificación ordinal coherente con la gradación clínica Normal–Sospechoso–Patológico.
+
+3.5 Reducción de dimensionalidad
+Con 21 variables de entrada, el espacio de características no puede ser representado directamente de forma visual. Para comprender la estructura de los datos antes y después del clustering, planeamos aplicar técnicas de reducción de dimensionalidad que proyecten los registros a dos o tres dimensiones:
+
+    • Análisis de Componentes Principales (PCA): técnica lineal que identifica las direcciones de mayor varianza en el espacio de características y proyecta los datos
+
+    • sobre ellas. Analizaremos la varianza explicada acumulada por los primeros componentes principales para determinar cuántos son suficientes para representar la estructura del dataset sin perder información significativa. PCA también actuará como herramienta diagnóstica para identificar las variables que más contribuyen a la separación de grupos.
+    • t-SNE (t-distributed Stochastic Neighbor Embedding): técnica no lineal especialmente diseñada para visualización en 2D. Preserva las relaciones de vecindad local entre puntos, lo que la hace ideal para revelar agrupaciones compactas que pueden no ser visibles en proyecciones lineales. La utilizaremos principalmente para visualizar los clusters resultantes una vez que los algoritmos hayan sido aplicados.
+    • UMAP (Uniform Manifold Approximation and Projection): alternativa moderna a t-SNE que preserva mejor la estructura global de los datos y es computacionalmente más eficiente. La consideraremos como visualización complementaria para contrastar con t-SNE.
+
+Es importante aclarar que la reducción de dimensionalidad se empleará principalmente con fines de visualización e interpretación. Los algoritmos de clustering podrán operar tanto sobre el espacio original estandarizado como sobre los componentes principales, y compararemos los resultados de ambos enfoques para evaluar si la reducción mejora la separabilidad de los grupos.
+
+4. Métodos de Clustering a Utilizar
+
+La selección de algoritmos de clustering no es arbitraria: cada método hace supuestos distintos sobre la forma, la densidad y la distribución de los datos, y esos supuestos deben ser compatibles con las características del dataset que trabajamos. A continuación describimos los tres algoritmos que planeamos aplicar en esta primera fase del análisis, justificando su elección en función de lo que sabemos del dataset de cardiotocografía fetal antes de ejecutar el preprocesamiento definitivo.
+
+4.1 K-Means++ (clustering particional)
+K-Means es el algoritmo de clustering más ampliamente utilizado en datos numéricos continuos, y constituye la línea base natural de cualquier análisis de agrupamiento. Su principio es directo: dada una cantidad k de clusters, el algoritmo busca iterativamente los k centroides que minimicen la suma de las distancias cuadráticas entre cada punto y su centroide más cercano (inercia). Utilizaremos la variante K-Means++, que mejora el procedimiento de inicialización eligiendo los centroides iniciales de forma que estén lo más separados posible entre sí. Esta diferencia respecto al K-Means clásico es crítica: una mala inicialización puede hacer que el algoritmo converja a un mínimo local subóptimo, generando clusters artificialmente fusionados que no corresponden a ninguna estructura real en los datos.
+
+En el contexto del dataset CTG, su aplicación se justifica por tres razones. Primero, conocemos de antemano que el problema tiene tres categorías clínicas (Normal, Sospechoso y Patológico), lo que nos proporciona un valor de k biológicamente motivado con el que comenzar. Segundo, K-Means++ es computacionalmente eficiente incluso con 2,126 registros y 21 variables, lo que permite explorar el espacio de soluciones con rapidez. Tercero, al ser el algoritmo más interpretable del conjunto, sus centroides en el espacio estandarizado pueden ser comparados directamente con los perfiles fisiológicos de cada estado de salud, facilitando la discusión clínica de los resultados.
+
+Su limitación más importante en este dataset es que asume clusters de forma esférica y tamaño similar, lo cual puede no reflejar la geometría real de los grupos en un espacio de 21 dimensiones heterogéneas. Además, K-Means no tiene mecanismo para identificar outliers: los registros con
+
+valores extremos (como los cinco casos con severe_decelerations > 0) serán asignados al centroide más cercano, diluyendo potencialmente la señal de los casos patológicos.
+
+4.2 DBSCAN (clustering basado en densidad)
+DBSCAN (Density-Based Spatial Clustering of Applications with Noise) opera sobre un principio completamente distinto al de K-Means: en lugar de minimizar distancias a centroides, identifica regiones del espacio donde los puntos se encuentran densamente agrupados, y declara como ruido (noise) a los puntos que no pertenecen a ninguna región densa. El algoritmo requiere dos hiperparámetros: epsilon (el radio de vecindad alrededor de cada punto) y min_samples (el número mínimo de puntos que deben existir dentro de ese radio para que un punto sea considerado núcleo de un cluster).
+
+Su elección para este análisis responde directamente a uno de los retos del dataset: la presencia de variables con distribuciones extremadamente asimétrica y esparsas, como severe_decelerations (5 registros con valor distinto de cero sobre 2,126) o prolongued_decelerations. DBSCAN es el único algoritmo del conjunto capaz de tratar estos registros de forma explícita: en lugar de absorberlos al grupo más cercano, puede identificarlos como puntos de ruido o como un micro-cluster de alta densidad diferenciado del resto. En medicina, esta capacidad es valiosa porque los casos más raros suelen ser los más críticos.
+
+Otra ventaja es que DBSCAN no requiere definir el número de clusters de antemano, lo que nos permitirá contrastar si la estructura natural de los datos sugiere tres agrupaciones (como indica la etiqueta clínica) o una partición diferente. Si tras el preprocesamiento el espacio estandarizado presenta clusters de densidad irregular, DBSCAN los capturará mejor que K-Means. La calibración de epsilon y min_samples se realizará mediante el análisis de la curva de distancias al k-ésimo vecino más cercano, buscando el punto de inflexión que define la densidad mínima significativa.
+
+4.3 Gaussian Mixture Models (modelo probabilístico)
+Los Modelos de Mezcla Gaussiana (GMM) representan el tercer paradigma del análisis: en lugar de asignar cada punto a un único cluster de forma determinista, el modelo estima la probabilidad de que cada observación pertenezca a cada uno de los k componentes gaussianos. El ajuste se realiza mediante el algoritmo Expectation-Maximization (EM), que alterna entre estimar las probabilidades de pertenencia (paso E) y actualizar los parámetros de cada gaussiana media, covarianza y peso (paso M).
+
+La elección de GMM se fundamenta en dos características del dataset. En primer lugar, las variables fisiológicas del CTG, como la frecuencia cardíaca basal o la variabilidad a corto plazo, tienden a seguir distribuciones aproximadamente normales dentro de cada estado de salud. GMM captura esta estructura de forma natural, mientras que K-Means solo se aproxima a ella bajo condiciones restrictivas. En segundo lugar, la flexibilidad de la matriz de covarianza en GMM permite clusters de forma elíptica, lo que es más realista en un espacio de alta dimensión donde las variables no son independientes entre sí.
+
+Pero la ventaja más relevante de GMM para un dominio médico es su salida probabilística: en lugar de declarar que un feto pertenece al cluster 2, el modelo puede indicar que ese registro tiene un 65% de probabilidad de corresponder al grupo Sospechoso y un 35% al grupo Patológico. Esta ambigüedad cuantificada es clínicamente más honesta y útil que una asignación binaria, especialmente en los casos límite donde la transición entre estados no es abrupta.
+
+4.4 Tabla comparativa de algoritmos
+La siguiente tabla resume las diferencias clave entre los tres algoritmos seleccionados en las dimensiones más relevantes para este análisis:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Criterio} & \textbf{K-Means++} & \textbf{DBSCAN} & \textbf{GMM} \\
+\hline
+Paradigma & Distancia (euclidiana) & Densidad local & Probabilístico (gaussiano) \\
+\hline
+Forma de clusters & Esférica, convexa & Arbitraria, irregular & Elíptica (covarianza flexible) \\
+\hline
+Requiere $k$ inicial & Sí ($k = 3$) & No & Sí ($n\_components = 3$) \\
+\hline
+Manejo de outliers & Los absorbe al centroide más cercano & Los etiqueta como ruido (noise) & Les asigna baja probabilidad \\
+\hline
+Salida del modelo & Etiqueta dura ($0, 1, 2$) & Etiqueta dura + ruido ($-1$) & Probabilidad por cluster \\
+\hline
+Sensibilidad a escala & Alta, requiere estandarización & Alta, requiere estandarización & Moderada, requiere estandarización \\
+\hline
+Supuesto distribucional & Ninguno (minimiza inercia) & Ninguno (densidad uniforme) & Distribución gaussiana por cluster \\
+\hline
+Ventaja clave & Línea base interpretable & Identifica casos raros & Probabilidad de pertenencia \\
+\hline
+\textbf{Criterio} & \textbf{K-Means++} & \textbf{DBSCAN} & \textbf{GMM} \\
+\hline
+CTG & con $k = 3$ & como ruido & pertenencia por feto \\
+\hline
+\end{tabular}
+\end{table}
+
+4.5 Consideraciones previas al preprocesamiento
+Es importante subrayar que esta selección de algoritmos es preliminar y está condicionada al estado actual del dataset antes de ejecutar el EDA completo, la limpieza definitiva y la reducción de dimensionalidad. Una vez que el preprocesamiento esté concluido, los resultados del análisis de componentes principales, la distribución observada de las variables transformadas y el comportamiento de las distancias entre registros pueden modificar nuestra estrategia algorítmica.
+
+En particular, si el PCA revela que la varianza del dataset se concentra en dos o tres componentes con una estructura de separación clara y lineal, K-Means++ podría ser suficiente y GMM aportaría poca ventaja adicional. Si, por el contrario, los datos proyectados muestran grupos de densidad irregular o formas no convexas, consideraríamos reemplazar o complementar K-Means++ con Clustering Jerárquico Aglomerativo, que no asume forma de cluster y produce un dendrograma que permite explorar la partición en distintos niveles de granularidad sin necesidad de fijar k de antemano. Esta decisión quedará documentada y justificada tras el análisis exploratorio.
+
+
+5. Métricas de Evaluación Planeadas
+
+Evaluar la calidad de un clustering es fundamentalmente más difícil que evaluar un modelo supervisado, porque no existe una respuesta única y correcta contra la cual comparar. Un clustering puede ser técnicamente bueno (grupos compactos y bien separados) pero clínicamente irrelevante si no captura la estructura de riesgo fetal. Por eso adoptamos un enfoque de evaluación en dos niveles: métricas internas, que miden la coherencia geométrica de los clusters sin usar etiquetas, y métricas externas, que aprovechan la columna fetal_health como referencia para medir la utilidad diagnóstica de los grupos descubiertos.
+
+5.1 Métricas internas
+Las métricas internas son independientes de cualquier etiqueta externa: evalúan únicamente la estructura de los datos y la partición generada. Utilizaremos tres métricas complementarias, ya que cada una captura una dimensión distinta de la calidad del clustering:
+
+Silhouette Score
+El Silhouette Score de una observación se define como la diferencia entre su distancia media a todos los puntos de su propio cluster y su distancia media al cluster vecino más cercano, normalizada por el máximo de ambas. El valor resultante está en el rango [-1, 1]: un valor próximo a 1 indica que el punto está bien asignado a su cluster y lejos del siguiente más cercano; un valor cercano a 0 indica que el punto está en la frontera entre dos clusters; y un valor negativo indica una asignación probablemente incorrecta. Reportaremos tanto el promedio global como las gráficas de silueta individuales para cada algoritmo, lo que nos permitirá identificar qué estados de salud fetal presentan mayor ambigüedad en su asignación.
+
+Davies–Bouldin Index (DBI)
+El Índice de Davies-Bouldin mide, para cada cluster, la ratio entre su dispersión interna y su distancia al cluster más similar. El índice global es el promedio de esas ratios sobre todos los clusters. A diferencia del Silhouette Score, el DBI no requiere calcular distancias entre todos los pares de puntos, lo que lo hace computacionalmente más eficiente. Buscaremos minimizarlo: un DBI bajo indica que los grupos son simultáneamente compactos (baja dispersión interna) y bien separados entre sí. En el contexto del CTG, un DBI bajo implicaría que los perfiles fisiológicos de los estados Normal, Sospechoso y Patológico son internamente homogéneos y mutuamente distintos.
+
+Calinski–Harabasz Index (CHI)
+El Índice de Calinski-Harabasz, también llamado Variance Ratio Criterion, evalúa la relación entre la varianza entre clusters (dispersión inter-cluster) y la varianza dentro de los clusters (dispersión intra-cluster), ponderada por el número de observaciones y el número de grupos. Cuanto mayor sea este índice, mejor definida estará la partición: los grupos son densos internamente y están bien separados globalmente. El CHI es especialmente sensible al número de clusters, lo que lo convierte en una herramienta útil para comparar configuraciones con distintos valores de k y seleccionar el más apropiado.
+
+5.2 Métricas externas
+Dado que el dataset incluye la columna fetal_health con la clasificación clínica de los tres obstetras expertos, disponemos de un privilegio poco común en clustering: una referencia externa de alta calidad. Utilizaremos dos métricas externas para cuantificar en qué medida los grupos descubiertos coinciden con esa referencia, manteniendo siempre presente que la coincidencia perfecta no es necesariamente el objetivo, pues un clustering puede revelar una estructura igualmente válida pero distinta a la clasificación médica convencional.
+
+Adjusted Rand Index (ARI)
+El Rand Index mide la proporción de pares de observaciones que reciben el mismo tratamiento (asignados al mismo cluster o a clusters distintos) tanto en la partición generada como en la referencia de etiquetas. El ARI es su versión corregida por azar: descuenta las coincidencias que ocurrirían simplemente por azar dado el número de clusters y observaciones. Su rango es (-1, 1], donde 1 indica concordancia perfecta, 0 indica que los clusters son equivalentes a una asignación aleatoria, y valores negativos indican peor que el azar. Un ARI alto para K-Means sobre este dataset significaría que la distancia euclidiana en el espacio estandarizado es suficiente para separar los tres estados de salud fetal.
+
+Normalized Mutual Information (NMI)
+La Información Mutua entre la partición generada y las etiquetas reales mide cuánta información sobre una de ellas se puede obtener conociendo la otra. La versión normalizada (NMI) la escala al rango [0, 1], eliminando el sesgo que la Información Mutua sin normalizar introduce cuando el número de clusters es grande. La NMI es complementaria al ARI: mientras el ARI penaliza directamente las asignaciones incorrectas par a par, la NMI captura dependencias estadísticas más generales. Utilizaremos ambas métricas de forma conjunta para obtener una imagen más completa de la relación entre los clusters descubiertos y la clasificación diagnóstica.
+
+5.3 Tabla resumen de métricas
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|l|p{6.5cm}|}
+\hline
+\textbf{Métrica} & \textbf{Tipo} & \textbf{Rango óptimo} & \textbf{Qué mide en este dataset} \\
+\hline
+Silhouette Score & Interna & Cercano a +1 & Cohesión interna y separación entre los tres grupos de salud fetal. Un valor alto indica que los registros de cada cluster están más cerca de sus vecinos de cluster que de los de otros. \\
+\hline
+Davies–Bouldin Index & Interna & Mínimo posible & Similitud promedio entre cada cluster y el más parecido a él. Valores bajos indican grupos compactos y bien separados, sin solapamiento entre estados Normal, Sospechoso y Patológico. \\
+\hline
+Calinski–Harabasz Index & Interna & Máximo posible & Relación entre la dispersión inter-cluster e intra-cluster. Valores altos significan que los grupos son densos internamente y están lejos unos de otros en el espacio de características. \\
+\hline
+Adjusted Rand Index (ARI) & Externa & Cercano a +1 & Concordancia entre los clusters descubiertos y las etiquetas reales (fetal\_health), corregida por azar. Un ARI = 1 significaría que el algoritmo replicó exactamente el diagnóstico de los obstetras. \\
+\hline
+Normalized Mutual Information (NMI) & Externa & Cercano a 1 & Información compartida entre la partición generada y las etiquetas clínicas, normalizada en [0, 1]. Complementa al ARI al capturar dependencia estadística más allá de la coincidencia de asignaciones. \\
+\hline
+\end{tabular}
+\end{table}
+
+5.4 Estrategia de evaluación comparativa
+Las métricas se aplicarán de forma sistemática a los tres algoritmos (K-Means++, DBSCAN y GMM) sobre el espacio estandarizado original y, adicionalmente, sobre la proyección en componentes principales para evaluar si la reducción de dimensionalidad mejora la calidad del clustering. Los resultados se presentarán en una tabla comparativa que permitirá identificar, para cada métrica, cuál algoritmo produce la partición más coherente tanto geométricamente como desde el punto de vista clínico.
+
+Para K-Means++ y GMM, las métricas se evaluarán para distintos valores de k (2, 3, 4 y 5) mediante la curva del codo y la curva de Silhouette promedio, de modo que la selección de k = 3 quede justificada empíricamente y no solo por la existencia de tres etiquetas clínicas. Para DBSCAN, la evaluación se realizará sobre la configuración de hiperparámetros que resulte del análisis de la curva de distancias al k-ésimo vecino.
+
+
+6. Plan de Visualizaciones
+
+El análisis de clustering en un espacio de 21 dimensiones produce resultados que no pueden interpretarse directamente sin apoyo visual. Las visualizaciones no son un complemento estético al análisis: son la herramienta principal para comunicar la estructura descubierta, diagnosticar la calidad de los algoritmos y detectar problemas que las métricas numéricas no capturan por sí solas. Organizamos el plan visual en tres etapas consecutivas que acompañan el flujo completo del proyecto.
+
+6.1 Visualizaciones de exploración y preprocesamiento
+Estas visualizaciones se generan antes de aplicar cualquier algoritmo de clustering. Su objetivo es entender la estructura interna del dataset, identificar las transformaciones necesarias y construir intuición sobre el espacio de características.
+
+Mapa de calor de correlaciones (Heatmap)
+Construiremos la matriz de correlación de Pearson entre las 21 variables de entrada y la representaremos como un mapa de calor con escala de color divergente centrada en cero. Esta visualización cumple dos funciones. La primera es confirmar empíricamente la multicolinealidad que anticipamos entre histogram_mode, histogram_mean y histogram_median: si estas variables muestran coeficientes de correlación superiores a 0.90 entre sí, quedará justificada su consolidación mediante PCA. La segunda función es exploratoria: pueden existir correlaciones entre variables de señal CTG y variables del histograma que no sean evidentes a priori y que aporten información sobre qué combinaciones de características son más discriminantes.
+
+Histogramas y boxplots por variable
+Para cada una de las 21 variables generaremos un histograma superpuesto con una estimación de densidad (KDE) y un diagrama de caja (boxplot). Estos gráficos servirán para visualizar directamente la asimetría, la esparsidad y los outliers que describimos en la sección de retos: la concentración de ceros en severe_decelerations, la cola larga de histogram_variance y la distribución bimodal de percentage_of_time_with_abnormal_long_term_variability, por ejemplo, quedarán evidentes antes de decidir qué transformación aplicar a cada variable.
+
+Complementaremos con boxplots agrupados por la etiqueta fetal_health, lo que nos permitirá identificar, de forma exploratoria, qué variables presentan mayor diferencia de distribución entre los estados Normal, Sospechoso y Patológico. Esta información guiará la interpretación posterior de los clusters.
+
+6.2 Visualizaciones de selección de hiperparámetros
+Antes de entrenar los algoritmos con configuraciones definitivas, generamos las visualizaciones que justifican la elección de hiperparámetros clave.
+
+Curva del codo y Silhouette promedio vs. k
+Para K-Means++ y GMM ejecutaremos el algoritmo con valores de k entre 2 y 8. Para cada valor de k graficaremos simultáneamente la inercia (suma de distancias cuadráticas a centroides, para K-Means) y el Silhouette Score promedio. La curva del codo muestra el punto donde la ganancia de reducir la inercia al aumentar k se vuelve marginal, mientras que la curva de Silhouette identifica el k que maximiza la cohesión interna. Si ambas curvas señalan k = 3, la elección quedará doblemente justificada; si divergen, documentaremos la tensión y justificaremos la decisión.
+
+Curva de distancias al k-ésimo vecino (para DBSCAN)
+La calibración de epsilon en DBSCAN se realizará calculando, para cada punto del dataset, su distancia al k-ésimo vecino más cercano (donde k = min_samples), y ordenando esas distancias de mayor a menor. El punto de inflexión en la curva resultante (el codo) corresponde al epsilon óptimo: por encima de ese valor, DBSCAN comenzaría a fusionar clusters distintos; por debajo, fragmentaría clusters reales en ruido. Esta visualización es la única forma rigurosa de calibrar DBSCAN y documentaremos el razonamiento completo.
+
+6.3 Visualizaciones post-clustering
+Estas son las visualizaciones centrales del análisis: muestran los resultados de cada algoritmo de forma comparable y permiten evaluar tanto la calidad geométrica como la relevancia clínica de los grupos descubiertos.
+
+Gráficas de dispersión PCA 2D: etiqueta real vs. clusters
+Proyectaremos el espacio de 21 variables estandarizadas sobre sus dos primeros componentes principales y generaremos un panel con cuatro gráficas de dispersión lado a lado: una coloreada por la etiqueta real (fetal_health) y una por cada algoritmo (K-Means++, DBSCAN y GMM). Esta comparación visual directa es la forma más intuitiva de responder la pregunta central del proyecto: ¿está el algoritmo viendo lo mismo que el médico?
+
+Si los clusters del algoritmo coinciden espacialmente con las regiones coloreadas por fetal_health, el ARI y la NMI serán altos, y lo veremos reflejado en la separación visual. Si, por el contrario, los clusters cruzan las fronteras de las categorías clínicas, la visualización revelará qué tipo de confusión se produce: si los casos Sospechosos son absorbidos por los Normales, si los Patológicos forman un grupo aislado, o si existe un continuo en lugar de tres grupos discretos.
+
+Gráficas de dispersión t-SNE 2D
+Generaremos proyecciones t-SNE independientes coloreadas por etiqueta real y por clusters de cada algoritmo. t-SNE preserva la estructura de vecindad local y frecuentemente revela agrupaciones que PCA no puede capturar al ser lineal. Su comparación con las proyecciones PCA nos indicará si la separabilidad entre grupos es de naturaleza lineal o requiere representaciones no lineales para manifestarse. Adicionalmente, los puntos clasificados como ruido por DBSCAN (etiqueta -1) se marcarán explícitamente en la proyección t-SNE para evaluar si corresponden a regiones de baja densidad clínicamente interpretables.
+
+Gráficas de silueta individuales (Silhouette plots)
+Para cada algoritmo generaremos un diagrama de silueta en el que cada observación aparece como una barra horizontal cuya longitud representa su coeficiente de silueta. Las barras se agrupan por cluster y se ordenan de mayor a menor dentro de cada grupo. Esta representación va mucho más allá del promedio: permite identificar si todos los estados de salud tienen cohesión similar o si, por ejemplo, el grupo Sospechoso concentra la mayoría de los coeficientes cercanos a cero o negativos, lo que indicaría que ese estado es intrínsecamente difuso y difícil de separar del grupo Normal. Una silueta con barras uniformes y todas positivas indica un clustering robusto; siluetas asimétricas o con muchos valores negativos señalan problemas de separabilidad.
+
+Dendrograma (clustering jerárquico auxiliar)
+Aunque el Clustering Jerárquico Aglomerativo no es uno de los tres algoritmos principales de este análisis, planeamos aplicarlo de forma auxiliar y representar sus resultados mediante un dendrograma. Esta visualización construye un árbol de fusiones desde los 2,126 registros individuales hasta un único grupo global, mostrando en qué nivel de distancia se unen los distintos subconjuntos. El dendrograma nos permite verificar empíricamente si el dataset tiene una estructura jerárquica natural con tres grandes ramas, lo que reforzaría la elección de k = 3. Si el árbol muestra dos ramas muy diferenciadas y una tercera subdividida, eso podría sugerir que la frontera entre Normal y Sospechoso es más difusa que entre esas dos categorías y la Patológica.
+
+Matriz de confusión clusters vs. etiquetas
+Para cada algoritmo construiremos una matriz que cruce los clusters descubiertos (filas) con las etiquetas reales de fetal_health (columnas), representada como un mapa de calor normalizado. Esta matriz revela el mapeo natural entre clusters y categorías clínicas: qué cluster corresponde principalmente a la clase Normal, cuál a la Sospechosa y cuál a la Patológica. También cuantifica los errores de asignación: qué proporción de registros Patológicos fueron asignados al cluster Normal, por ejemplo, que es el error más crítico desde el punto de vista médico.
+
+6.4 Resumen del plan de visualizaciones
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Visualización} & \textbf{Momento} & \textbf{Objetivo} \\
+\hline
+Heatmap de correlaciones & Preprocesamiento & Confirmar multicolinealidad entre variables del histograma y justificar la reducción de dimensionalidad. \\
+\hline
+Distribuciones por variable (histogramas / boxplots) & EDA & Visualizar asimetría, esparsidad y outliers en cada columna antes de la transformación. \\
+\hline
+Gráfica del codo (Elbow) y Silhouette vs. k & Selección de k & Determinar el número óptimo de clusters para K-Means y GMM antes de entrenar. \\
+\hline
+Scatter PCA 2D — etiqueta real vs. clusters & Post-clustering & Comparar lado a lado la estructura que percibe el médico (fetal\_health) y la que encuentra cada algoritmo. \\
+\hline
+Scatter t-SNE 2D por algoritmo & Post-clustering & Revelar agrupaciones no lineales que PCA podría no capturar; especialmente útil para visualizar los outliers de DBSCAN. \\
+\hline
+Gráficas de silueta (Silhouette plots) & Evaluación & Ver la distribución interna de cohesión registro por registro, no solo el promedio. Revelar qué estados de salud se confunden más. \\
+\hline
+Dendrograma (clustering jerárquico auxiliar) & Exploración & Analizar la jerarquía natural del dataset y confirmar si tres es un número de clusters razonable antes de fijar k. \\
+\hline
+Matriz de confusión clusters vs. etiquetas & Evaluación externa & Mapear qué cluster corresponde a qué categoría clínica y cuantificar los errores de asignación. \\
+\hline
+\end{tabular}
+\end{table}
+
+\end{document}
