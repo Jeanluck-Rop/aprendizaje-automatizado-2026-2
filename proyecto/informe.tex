@@ -1,0 +1,147 @@
+\documentclass[12pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern, microtype}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{chngcntr, listings}
+\usepackage{graphicx, tikz, float, xcolor}
+\usepackage{booktabs, array, colortbl, enumitem}
+\usepackage{geometry, fancyhdr, titlesec, tocloft, tocloft}
+
+\usepackage[normalem]{ulem}
+\usepackage{caption}
+\usepackage[hidelinks]{hyperref}
+
+\geometry{margin=2.5cm, top=2.5cm, bottom=2.5cm}
+\newcommand{\asig}{\leftarrow}
+
+\definecolor{navyblue}{RGB}{20, 50, 100}
+\definecolor{headbg}  {RGB}{228, 236, 250}
+
+\titleformat{\section}
+  {\large\bfseries\color{navyblue}}
+  {\thesection.}{0.5em}{}
+  [\vspace{2pt}\textcolor{navyblue}{\titlerule[0.7pt]}]
+\titlespacing*{\section}{0pt}{22pt}{10pt}
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{navyblue!85!black}}
+  {\thesubsection}{0.5em}{}
+\titlespacing*{\subsection}{0pt}{14pt}{5pt}
+
+\titleformat{\subsubsection}
+  {\normalsize\bfseries}
+  {\thesubsubsection}{0.5em}{}
+\titlespacing*{\subsubsection}{0pt}{12pt}{4pt}
+
+\titleformat{\paragraph}[runin]
+  {\normalsize\bfseries\itshape}{}{0pt}{}[\enspace]
+\titlespacing*{\paragraph}{0pt}{8pt}{4pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{%
+  \small\textit{\textcolor{navyblue}{Análisis de Cardiotocografía Fetal mediante Clustering}}}
+\fancyhead[R]{\small\textcolor{navyblue}{\thepage}}
+\renewcommand{\headrulewidth}{0.5pt}
+\makeatletter
+\renewcommand{\headrule}{%
+  \vbox to 0pt{%
+    \hbox to\headwidth{\color{navyblue}\leaders\hrule height\headrulewidth\hfill}%
+    \vss}}
+\makeatother
+
+\renewcommand{\cftsecfont}{\bfseries\color{navyblue}}
+\renewcommand{\cftsecpagefont}{\bfseries\color{navyblue}}
+\setlength{\cftbeforesecskip}{5pt}
+\setlength{\cftbeforesubsecskip}{1pt}
+
+\renewcommand{\arraystretch}{1.30}
+\setlength{\tabcolsep}{6pt}
+\captionsetup{font=small, labelfont={bf,color=navyblue}, skip=5pt}
+
+\begin{document}
+
+\input{portada}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\tableofcontents
+
+\newpage
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Introducción}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\begin{itemize}
+    \item \textbf{Contexto y motivación:} Reducir la mortalidad materno-infantil para 2030 utilizando la Cardiotocografía (CTG) como herramienta clave de monitoreo preventivo.
+    \item \textbf{Descripción del problema:} Aplicar clustering a 2,126 registros de CTG para descubrir patrones fisiológicos ocultos, usando el diagnóstico clínico únicamente como validación final.
+    \item \textbf{Justificación del dataset:} Datos 100\% numéricos, sin nulos y con escalas muy distintas; el escenario ideal para probar IA, estandarización y PCA en un contexto médico.
+    \item \textbf{Objetivo general:} Evaluar si tres algoritmos de clustering logran agrupar los datos y replicar los diagnósticos médicos expertos de forma totalmente autónoma.
+\end{itemize}
+%% ─────────────────────────────────────────────────────────────────────────────
+\section{Descripción del Dataset}
+%% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection{Fuente y referencia}
+
+El dataset proviene de Kaggle \\(\url{https://www.kaggle.com/datasets/andrewmvd/fetal-health-classification}) y del estudio SisPorto 2.0. Contiene registros reales de CTG validados por tres obstetras, garantizando un sólido respaldo clínico para el modelo.
+
+\subsection{Dimensiones y naturaleza del dataset}
+
+El dataset consta de 2,126 registros y 21 variables 100\% numéricas. Su principal reto es tratar la fuerte redundancia en los histogramas para no afectar el rendimiento de los modelos.
+
+\begin{itemize}[leftmargin=2em, itemsep=4pt]
+  \item \textbf{Variables continuas:} Las variables continuas (aceleraciones, movimientos, contracciones y desaceleraciones) son valores decimales que miden la frecuencia de estos eventos por segundo.
+
+  \item \textbf{Variables discretas:} Las variables discretas (estadísticas del histograma y porcentajes) funcionan en la práctica como números enteros, a pesar de que el sistema las almacene en formato decimal.
+
+  \item \textbf{Estadísticas de agregación:} Las estadísticas de agregación (media, mediana y moda) están altamente correlacionadas entre sí, lo que introduce redundancia matemática y puede afectar la eficiencia de los modelos.
+\end{itemize}
+
+\subsection{Variable objetivo}
+
+La etiqueta clínica fetal\_health se usará exclusivamente como referencia externa para evaluar el éxito de los clústeres, tomando en cuenta su fuerte desbalance (78\% son casos normales).
+
+\section{Análisis de problemas de calidad}
+%% ─────────────────────────────────────────────────────────────────────────────
+\begin{itemize}
+    \item \textbf{Ausencia de valores faltantes:} Verificar por código que realmente no haya nulos ocultos o vacíos.
+    \item \textbf{Posibles duplicados exactos:} Aunque no se afirma que existan, revisarlos y eliminarlos para no sesgar la agrupación de los datos.
+    \item \textbf{Heterogeneidad de escalas:} Estandarizar obligatoriamente para equilibrar variables que miden cientos frente a otras que miden decimales.
+    \item \textbf{Outliers:} Identificar y tratar valores extremos que distorsionan algoritmos como K-Means y DBSCAN.
+    \item \textbf{Multicolinealidad:} La media, mediana y moda del histograma son redundantes; usarlas juntas sin tratamiento sobrepondera la misma información.
+    \item \textbf{Baja varianza y esparsidad:} Analizar con cuidado si vale la pena conservar las variables de desaceleración, dado que casi siempre tienen un valor de cero.
+    \item \textbf{Validación de rangos clínicos:} Asegurar que ninguna variable contenga valores imposibles o fuera de la realidad médica (ej. porcentajes mayores a 100).
+\end{itemize}
+
+\section{Procesos de limpieza y preprocesamiento aplicados}
+
+Consiste en realizar una auditoría completa del dataset y se centra en seis dimensiones: completitud, conformidad, consistencia, integridad, duplicados y precisión.
+
+\paragraph{Completitud y valores faltantes}
+ Verificar por código que no existan nulos ocultos ni valores "centinela" (como $-999$).
+
+\paragraph{Duplicados}
+Eliminar registros exactamente iguales, guardando solo el primero y documentando cuáles fueron borrados.
+
+\paragraph{Consistencia y errores de registro y Tratamiento de outliers}
+Validar que los datos respeten los rangos médicos lógicos. Se aplicará el método IQR para detectar anomalías, decidiendo su tratamiento según su relevancia clínica, ya que distorsionan K-Means pero pueden ser útiles en DBSCAN al detectarse como ruido.
+
+\begin{itemize}[leftmargin=2em, itemsep=4pt]
+  \item Si el outlier corresponde a un caso Patológico (clase 3), se evaluará conservarlo para no sesgar el análisis.
+  \item Si es un error de captura, será eliminado.
+  \item En variables con alta esparsidad, como severe\_decelerations, se analizará si los pocos valores distintos de cero son informativos o si requieren una transformación logarítmica para su manejo.
+\end{itemize}
+
+\section{Resultado esperado del preprocesamiento}
+El preprocesamiento es la base fundamental del proyecto, es indispensable para eliminar sesgos. Esto asegura que K-Means++, DBSCAN y GMM descubran verdaderos patrones médicos y no errores de los datos.
+
+
+\end{document}
